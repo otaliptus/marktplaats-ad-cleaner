@@ -1,0 +1,4 @@
+/* Kept outside the control's Shadow DOM so it can hide Marktplaats cards. */
+[data-mp-ad-cleaner-hidden="true"] {
+  display: none !important;
+}

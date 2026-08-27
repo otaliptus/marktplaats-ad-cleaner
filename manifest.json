@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Marktplaats Ad Cleaner",
+  "version": "1.0.0",
+  "description": "Hides promoted Marktplaats listings by default and adds a small on-page toggle.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.marktplaats.nl/*"],
+      "css": ["content.css"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
