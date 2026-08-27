@@ -1,4 +1,4 @@
-# Marktplaats Ad Cleaner
+# Ad Cleaner for Marktplaats
 
 A small local Chromium extension that hides paid-priority listing posts on Marktplaats by default.
 
@@ -27,4 +27,6 @@ The extension has no analytics, network requests, or access to other websites. I
 
 ## Uninstall
 
-Remove **Marktplaats Ad Cleaner** from the browser's extension page. You can then delete this folder.
+Remove **Ad Cleaner for Marktplaats** from the browser's extension page. You can then delete this folder.
+
+This is an independent browser extension and is not affiliated with or endorsed by Marktplaats.
