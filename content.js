@@ -20,6 +20,7 @@
   ]);
 
   const MARKER_SELECTOR = [
+    ".hz-priority-product",
     '[class*="ListingPriority"]',
     '[class*="listing-priority"]',
     '[data-testid*="listing-priority" i]',
@@ -49,11 +50,12 @@
   }
 
   function findCard(marker) {
-    const directMatch = marker.closest(CARD_SELECTOR);
-    if (directMatch) return directMatch;
+    // Gallery results wrap each article in a list item. Hide that outer item as
+    // well so removing an advertisement does not leave an empty grid cell.
+    const listItem = marker.closest("li");
+    if (listItem) return listItem;
 
-    // A plain list item is a safe fallback: result lists use one <li> per card.
-    return marker.closest("li");
+    return marker.closest(CARD_SELECTOR);
   }
 
   function updateControl() {
