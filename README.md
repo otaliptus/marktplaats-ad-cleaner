@@ -2,6 +2,8 @@
 
 A small local Chromium extension that hides paid-priority listing posts on Marktplaats by default.
 
+Source code: https://github.com/otaliptus/marktplaats-ad-cleaner
+
 It currently recognizes Marktplaats' **Topadvertentie** and **Dagtopper** labels (plus a few localized fallbacks), works with dynamically loaded results, and adds a small switch to the top-left of the page. The preference is remembered across tabs and visits.
 
 ## Install in Chrome, Edge, Brave, or another Chromium browser
