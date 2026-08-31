@@ -3,9 +3,13 @@
 
   const HOST_ID = "mp-ad-cleaner-control";
   const PROMOTED_ATTRIBUTE = "data-mp-ad-cleaner-promoted";
-  const HIDDEN_ATTRIBUTE = "data-mp-ad-cleaner-hidden";
-  const STORAGE_KEY = "hidePromotedListings";
-  const DEFAULT_ENABLED = true;
+  const WEBSITE_ATTRIBUTE = "data-mp-ad-cleaner-website";
+  const HIDE_PROMOTED_ATTRIBUTE = "data-mp-ad-cleaner-hide-promoted";
+  const HIDE_WEBSITE_ATTRIBUTE = "data-mp-ad-cleaner-hide-website";
+  const PROMOTED_STORAGE_KEY = "hidePromotedListings";
+  const WEBSITE_STORAGE_KEY = "hideWebsiteListings";
+  const DEFAULT_PROMOTED_ENABLED = true;
+  const DEFAULT_WEBSITE_ENABLED = false;
 
   // These are the paid-priority labels currently used by Marktplaats.
   // The extra localized labels make the detector resilient to copy changes.
@@ -19,12 +23,31 @@
     "top ad"
   ]);
 
-  const MARKER_SELECTOR = [
+  // Marktplaats uses both labels for listings that send visitors to a shop.
+  const WEBSITE_LABELS = new Set([
+    "bezoek website",
+    "bestel op webshop",
+    "bekijk website",
+    "visit website",
+    "visit webshop",
+    "order on webshop"
+  ]);
+
+  const PROMOTION_MARKER_SELECTOR = [
     ".hz-priority-product",
     '[class*="ListingPriority"]',
     '[class*="listing-priority"]',
     '[data-testid*="listing-priority" i]',
     '[data-testid*="priority" i]'
+  ].join(",");
+
+  const WEBSITE_MARKER_SELECTOR = [
+    ".hz-link-label",
+    ".hz-Badge--brand",
+    '[data-testid*="website" i]',
+    '[data-testid*="webshop" i]',
+    '[class*="website" i]',
+    '[class*="webshop" i]'
   ].join(",");
 
   const CARD_SELECTOR = [
@@ -35,71 +58,115 @@
     "article"
   ].join(",");
 
-  let enabled = DEFAULT_ENABLED;
+  let promotedEnabled = DEFAULT_PROMOTED_ENABLED;
+  let websiteEnabled = DEFAULT_WEBSITE_ENABLED;
   let scanScheduled = false;
   let promotedCards = [];
-  let control = null;
+  let websiteCards = [];
+  let controls = null;
 
   function normalizeLabel(value) {
     return value.replace(/\s+/g, " ").trim().toLocaleLowerCase("nl-NL");
   }
 
-  function isPromotionMarker(element) {
-    const label = normalizeLabel(element.textContent || "");
-    return PROMOTION_LABELS.has(label);
+  function hasLabel(element, labels) {
+    return labels.has(normalizeLabel(element.textContent || ""));
   }
 
   function findCard(marker) {
     // Gallery results wrap each article in a list item. Hide that outer item as
-    // well so removing an advertisement does not leave an empty grid cell.
+    // well so removing a listing does not leave an empty grid cell.
     const listItem = marker.closest("li");
     if (listItem) return listItem;
 
     return marker.closest(CARD_SELECTOR);
   }
 
-  function updateControl() {
-    if (!control) return;
+  function updateToggle(toggle, options) {
+    const { enabled, count, hiddenTitle, visibleTitle, hiddenLabel, visibleLabel } = options;
+    toggle.button.dataset.enabled = String(enabled);
+    toggle.button.setAttribute("aria-pressed", String(enabled));
+    toggle.button.setAttribute("aria-label", enabled ? hiddenLabel(count) : visibleLabel(count));
+    toggle.title.textContent = enabled ? hiddenTitle : visibleTitle;
+    toggle.count.textContent = count === 1 ? "1 post" : `${count} posts`;
+  }
 
-    const count = promotedCards.length;
-    control.button.dataset.enabled = String(enabled);
-    control.button.setAttribute("aria-pressed", String(enabled));
-    control.button.setAttribute(
-      "aria-label",
-      enabled
-        ? `Advertenties worden verborgen. ${count} gevonden. Klik om ze te tonen.`
-        : `Advertenties zijn zichtbaar. ${count} gevonden. Klik om ze te verbergen.`
-    );
-    control.title.textContent = enabled ? "Ads verborgen" : "Ads zichtbaar";
-    control.count.textContent = count === 1 ? "1 post" : `${count} posts`;
+  function updateControls() {
+    if (!controls) return;
+
+    updateToggle(controls.promoted, {
+      enabled: promotedEnabled,
+      count: promotedCards.length,
+      hiddenTitle: "Ads verborgen",
+      visibleTitle: "Ads zichtbaar",
+      hiddenLabel: (count) =>
+        `Advertenties worden verborgen. ${count} gevonden. Klik om ze te tonen.`,
+      visibleLabel: (count) =>
+        `Advertenties zijn zichtbaar. ${count} gevonden. Klik om ze te verbergen.`
+    });
+
+    updateToggle(controls.website, {
+      enabled: websiteEnabled,
+      count: websiteCards.length,
+      hiddenTitle: "Websites verborgen",
+      visibleTitle: "Websites zichtbaar",
+      hiddenLabel: (count) =>
+        `Website-advertenties worden verborgen. ${count} gevonden. Klik om ze te tonen.`,
+      visibleLabel: (count) =>
+        `Website-advertenties zijn zichtbaar. ${count} gevonden. Klik om ze te verbergen.`
+    });
   }
 
   function applyVisibility() {
     for (const card of promotedCards) {
-      card.setAttribute(HIDDEN_ATTRIBUTE, String(enabled));
+      card.setAttribute(HIDE_PROMOTED_ATTRIBUTE, String(promotedEnabled));
     }
-    updateControl();
+    for (const card of websiteCards) {
+      card.setAttribute(HIDE_WEBSITE_ATTRIBUTE, String(websiteEnabled));
+    }
+    updateControls();
+  }
+
+  function clearDetectionAttributes() {
+    const selector = [
+      `[${PROMOTED_ATTRIBUTE}]`,
+      `[${WEBSITE_ATTRIBUTE}]`,
+      `[${HIDE_PROMOTED_ATTRIBUTE}]`,
+      `[${HIDE_WEBSITE_ATTRIBUTE}]`
+    ].join(",");
+
+    for (const card of document.querySelectorAll(selector)) {
+      card.removeAttribute(PROMOTED_ATTRIBUTE);
+      card.removeAttribute(WEBSITE_ATTRIBUTE);
+      card.removeAttribute(HIDE_PROMOTED_ATTRIBUTE);
+      card.removeAttribute(HIDE_WEBSITE_ATTRIBUTE);
+    }
+  }
+
+  function findCards(markerSelector, labels) {
+    const cards = new Set();
+    for (const marker of document.querySelectorAll(markerSelector)) {
+      if (!hasLabel(marker, labels)) continue;
+      const card = findCard(marker);
+      if (card) cards.add(card);
+    }
+    return [...cards];
   }
 
   function scan() {
     scanScheduled = false;
+    clearDetectionAttributes();
 
-    for (const card of document.querySelectorAll(`[${PROMOTED_ATTRIBUTE}]`)) {
-      card.removeAttribute(PROMOTED_ATTRIBUTE);
-      card.removeAttribute(HIDDEN_ATTRIBUTE);
-    }
+    promotedCards = findCards(PROMOTION_MARKER_SELECTOR, PROMOTION_LABELS);
+    websiteCards = findCards(WEBSITE_MARKER_SELECTOR, WEBSITE_LABELS);
 
-    const cards = new Set();
-    for (const marker of document.querySelectorAll(MARKER_SELECTOR)) {
-      if (!isPromotionMarker(marker)) continue;
-      const card = findCard(marker);
-      if (card) cards.add(card);
-    }
-
-    promotedCards = [...cards];
     for (const card of promotedCards) {
       card.setAttribute(PROMOTED_ATTRIBUTE, "true");
     }
+    for (const card of websiteCards) {
+      card.setAttribute(WEBSITE_ATTRIBUTE, "true");
+    }
+
     applyVisibility();
   }
 
@@ -109,19 +176,35 @@
     window.requestAnimationFrame(scan);
   }
 
-  async function readPreference() {
+  async function readPreferences() {
     try {
-      if (!globalThis.chrome?.storage?.local) return DEFAULT_ENABLED;
-      const saved = await chrome.storage.local.get({ [STORAGE_KEY]: DEFAULT_ENABLED });
-      return saved[STORAGE_KEY] !== false;
+      if (!globalThis.chrome?.storage?.local) {
+        return {
+          promoted: DEFAULT_PROMOTED_ENABLED,
+          website: DEFAULT_WEBSITE_ENABLED
+        };
+      }
+
+      const saved = await chrome.storage.local.get({
+        [PROMOTED_STORAGE_KEY]: DEFAULT_PROMOTED_ENABLED,
+        [WEBSITE_STORAGE_KEY]: DEFAULT_WEBSITE_ENABLED
+      });
+
+      return {
+        promoted: saved[PROMOTED_STORAGE_KEY] !== false,
+        website: saved[WEBSITE_STORAGE_KEY] === true
+      };
     } catch {
-      return DEFAULT_ENABLED;
+      return {
+        promoted: DEFAULT_PROMOTED_ENABLED,
+        website: DEFAULT_WEBSITE_ENABLED
+      };
     }
   }
 
-  async function savePreference(value) {
+  async function savePreference(key, value) {
     try {
-      await globalThis.chrome?.storage?.local?.set({ [STORAGE_KEY]: value });
+      await globalThis.chrome?.storage?.local?.set({ [key]: value });
     } catch {
       // Hiding still works for this tab if extension storage is unavailable.
     }
@@ -142,6 +225,11 @@
           inset: 92px auto auto 12px;
           z-index: 2147483646;
           color-scheme: light;
+        }
+
+        .controls {
+          display: grid;
+          gap: 8px;
         }
 
         button {
@@ -197,7 +285,7 @@
 
         .shield svg { height: 15px; width: 15px; }
 
-        .copy { display: grid; gap: 3px; min-width: 83px; }
+        .copy { display: grid; gap: 3px; min-width: 112px; }
 
         .title { letter-spacing: 0.01em; white-space: nowrap; }
 
@@ -240,37 +328,69 @@
           button, .shield, .switch, .knob { transition: none; }
         }
       </style>
-      <button type="button" data-enabled="true" aria-pressed="true">
-        <span class="shield" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3 5.5 5.7v5.2c0 4.2 2.7 7.9 6.5 9.7 3.8-1.8 6.5-5.5 6.5-9.7V5.7L12 3Z"/>
-            <path d="m8.7 12 2.1 2.1 4.5-4.6"/>
-          </svg>
-        </span>
-        <span class="copy">
-          <span class="title">Ads verborgen</span>
-          <span class="count" aria-live="polite">0 posts</span>
-        </span>
-        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
-      </button>
+      <div class="controls">
+        <button type="button" data-kind="promoted" data-enabled="true" aria-pressed="true">
+          <span class="shield" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3 5.5 5.7v5.2c0 4.2 2.7 7.9 6.5 9.7 3.8-1.8 6.5-5.5 6.5-9.7V5.7L12 3Z"/>
+              <path d="m8.7 12 2.1 2.1 4.5-4.6"/>
+            </svg>
+          </span>
+          <span class="copy">
+            <span class="title">Ads verborgen</span>
+            <span class="count" aria-live="polite">0 posts</span>
+          </span>
+          <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+        </button>
+        <button type="button" data-kind="website" data-enabled="false" aria-pressed="false">
+          <span class="shield" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z"/>
+            </svg>
+          </span>
+          <span class="copy">
+            <span class="title">Websites zichtbaar</span>
+            <span class="count" aria-live="polite">0 posts</span>
+          </span>
+          <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+        </button>
+      </div>
     `;
 
     document.documentElement.append(host);
 
-    const button = shadow.querySelector("button");
-    const title = shadow.querySelector(".title");
-    const count = shadow.querySelector(".count");
-    control = { button, title, count };
+    function getToggle(kind) {
+      const button = shadow.querySelector(`button[data-kind="${kind}"]`);
+      return {
+        button,
+        title: button.querySelector(".title"),
+        count: button.querySelector(".count")
+      };
+    }
 
-    button.addEventListener("click", async () => {
-      enabled = !enabled;
+    controls = {
+      promoted: getToggle("promoted"),
+      website: getToggle("website")
+    };
+
+    controls.promoted.button.addEventListener("click", async () => {
+      promotedEnabled = !promotedEnabled;
       applyVisibility();
-      await savePreference(enabled);
+      await savePreference(PROMOTED_STORAGE_KEY, promotedEnabled);
+    });
+
+    controls.website.button.addEventListener("click", async () => {
+      websiteEnabled = !websiteEnabled;
+      applyVisibility();
+      await savePreference(WEBSITE_STORAGE_KEY, websiteEnabled);
     });
   }
 
   async function start() {
-    enabled = await readPreference();
+    const preferences = await readPreferences();
+    promotedEnabled = preferences.promoted;
+    websiteEnabled = preferences.website;
     createControl();
     scan();
 
@@ -282,9 +402,18 @@
 
     if (globalThis.chrome?.storage?.onChanged) {
       chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== "local" || !changes[STORAGE_KEY]) return;
-        enabled = changes[STORAGE_KEY].newValue !== false;
-        applyVisibility();
+        if (area !== "local") return;
+
+        let changed = false;
+        if (changes[PROMOTED_STORAGE_KEY]) {
+          promotedEnabled = changes[PROMOTED_STORAGE_KEY].newValue !== false;
+          changed = true;
+        }
+        if (changes[WEBSITE_STORAGE_KEY]) {
+          websiteEnabled = changes[WEBSITE_STORAGE_KEY].newValue === true;
+          changed = true;
+        }
+        if (changed) applyVisibility();
       });
     }
   }

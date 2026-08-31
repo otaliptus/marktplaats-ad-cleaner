@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Ad Cleaner for Marktplaats",
-  "version": "1.0.2",
-  "description": "Hides promoted Marktplaats listings by default and adds a small on-page toggle.",
+  "version": "1.1.0",
+  "description": "Adds independent controls for promoted and website-directed Marktplaats listings.",
   "homepage_url": "https://github.com/otaliptus/marktplaats-ad-cleaner",
   "permissions": ["storage"],
   "icons": {

@@ -1,12 +1,12 @@
 # Ad Cleaner for Marktplaats
 
-A small local Chromium extension that hides paid-priority listing posts on Marktplaats by default.
+A small Chromium extension with independent controls for paid-priority and website-directed listings on Marktplaats.
 
 Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/egooojbdfjdeojnnlgcaifjcgdclmhhg).
 
 Source code: https://github.com/otaliptus/marktplaats-ad-cleaner
 
-It currently recognizes Marktplaats' **Topadvertentie** and **Dagtopper** labels (plus a few localized fallbacks), works with dynamically loaded results, and adds a small switch to the top-left of the page. The preference is remembered across tabs and visits.
+It recognizes Marktplaats' **Topadvertentie** and **Dagtopper** labels, as well as website-directed listings labeled **Bezoek website** or **Bestel op Webshop**. It works with dynamically loaded results and adds two small switches to the top-left of the page. Both preferences are remembered across tabs and visits.
 
 ## Install in Chrome, Edge, Brave, or another Chromium browser
 
@@ -21,13 +21,15 @@ It currently recognizes Marktplaats' **Topadvertentie** and **Dagtopper** labels
 
 ## Use
 
-- Hiding is **on by default**.
-- Click the small **Ads verborgen / Ads zichtbaar** control on Marktplaats to toggle promoted posts.
-- The count shows how many paid-priority posts were detected on the current page.
+- Promoted-listing hiding is **on by default**.
+- Website-listing hiding is **off by default**.
+- Use **Ads verborgen / Ads zichtbaar** to toggle paid-priority posts.
+- Use **Websites verborgen / Websites zichtbaar** to toggle website-directed posts.
+- Each count shows how many matching posts were detected on the current page.
 
 ## Privacy
 
-The extension has no analytics, network requests, or access to other websites. It stores only one local preference: whether promoted listings should be hidden.
+The extension has no analytics, network requests, or access to other websites. It stores only two local preferences: whether promoted listings and website-directed listings should be hidden.
 
 ## Uninstall
 
